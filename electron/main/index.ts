@@ -87,6 +87,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1600,
     height: 1000,
+    autoHideMenuBar: true, // 自动隐藏菜单栏
     webPreferences: {
       // 通过预加载脚本安全地暴露 API，预加载脚本通过 webPreferences.preload 配置，被注入到渲染进程中。它的代码会在渲染进程启动时、网页脚本加载前被执行。
       preload: path.join(__dirname, "../preload/index.js"),
@@ -94,7 +95,7 @@ function createWindow() {
       nodeIntegration: false, // 禁止渲染进程直接使用 Node.js API
     },
   });
-
+  // win.setMenuBarVisibility(false); // 隐藏菜单栏
   // 设置 CSP 响应头(生产环境更严格)
   if (!isDev) {
     win.webContents.session.webRequest.onHeadersReceived(
