@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "dist-electron/main/index.js",
   "scripts": {
-    "dev": "vite"
+    "dev": "chcp 65001 && vite"
   },
   "author": "",
   "license": "ISC",
