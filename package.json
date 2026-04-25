@@ -20,6 +20,12 @@
       "dist/**/*",
       "dist-electron/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "electron/assets",
+        "to": "electron/assets"
+      }
+    ],
     "win": {
       "target": [
         {

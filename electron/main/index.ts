@@ -116,7 +116,7 @@ function createWindow() {
 
   if (isDev) {
     win.loadURL("http://localhost:5173");
-    win.webContents.openDevTools();
+    win.webContents.openDevTools(); // 打开开发者工具
   } else {
     win.loadFile(path.join(__dirname, "../../dist/index.html"));
   }
