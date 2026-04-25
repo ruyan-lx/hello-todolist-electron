@@ -1,11 +1,9 @@
 {
   "name": "hello-todolist",
   "version": "1.0.0",
-  "main": "dist-electron/index.js",
+  "main": "dist-electron/main/index.js",
   "scripts": {
-    "dev": "vite",
-    "electron": "electron .",
-    "dev:electron": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\""
+    "dev": "vite"
   },
   "author": "",
   "license": "ISC",

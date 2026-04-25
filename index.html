@@ -2,6 +2,14 @@
 <html>
   <head>
     <meta charset="UTF-8" />
+    <!-- Content Security Policy: 提升应用安全性 -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline';
+      style-src 'self' 'unsafe-inline';
+      img-src 'self' data:;
+      connect-src 'self' ws://localhost:* http://localhost:*;
+    ">
     <title>Electron Todo</title>
   </head>
   <body>

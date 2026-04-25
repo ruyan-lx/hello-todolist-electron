@@ -17,7 +17,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, ref, toRaw, watch } from 'vue'
 
 const input = ref('')
 const list = ref<any[]>([])
@@ -40,8 +40,9 @@ onMounted(async () => {
   list.value = await window.api.invoke('todo:get')
 })
 
-// 深度监听列表变化，当列表内容改变时自动同步到主进程
+// 深度监听列表变化,当列表内容改变时自动同步到主进程
 watch(list, async (val) => {
-  await window.api.invoke('todo:set', val)
+  // 使用 toRaw 将 Vue 响应式对象转换为普通对象,避免序列化错误
+  await window.api.invoke('todo:set', toRaw(val))
 }, { deep: true })
 </script>
