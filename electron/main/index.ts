@@ -1,11 +1,22 @@
 // 文件：/electron/main/index.ts
 
-import { app, BrowserWindow } from "electron";
+import {
+  app,
+  BrowserWindow,
+  Notification,
+  dialog,
+  Tray,
+  Menu,
+  nativeImage,
+} from "electron";
 import { ipcMain } from "electron";
 import path from "path";
 import fs from "fs";
 
 const isDev = process.env.NODE_ENV === "development";
+
+let tray: Tray | null = null;
+let isQuitting = false;
 
 /* 生命周期日志辅助函数 */
 function logLifecycle(eventName: string) {
@@ -13,6 +24,62 @@ function logLifecycle(eventName: string) {
   const time = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}:${now.getSeconds().toString().padStart(2, "0")}.${now.getMilliseconds().toString().padStart(3, "0")}`;
   const windowCount = BrowserWindow.getAllWindows().length;
   console.log(`生命周期：${eventName} | ${time} | 窗口数量：${windowCount}`);
+}
+
+/* 创建系统托盘 */
+function createTray(win: BrowserWindow) {
+  // 使用 nativeImage 创建图标（Windows 推荐使用 ICO 或通过 nativeImage 创建）
+  let icon: Electron.NativeImage;
+
+  // 方案1: 尝试从文件加载
+  const iconPath = isDev
+    ? path.join(__dirname, "../../electron/assets/tray-icon.png")
+    : path.join(process.resourcesPath, "electron/assets/tray-icon.png");
+  icon = nativeImage.createFromPath(iconPath);
+
+  // 调整图标大小（Windows 托盘图标推荐 16x16）
+  icon = icon.resize({ width: 16, height: 16 });
+  tray = new Tray(icon);
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: "显示窗口",
+      click: () => {
+        win.show();
+        win.focus();
+      },
+    },
+    {
+      label: "新建待办",
+      click: () => {
+        win.show();
+        win.focus();
+        // 通知渲染进程聚焦输入框
+        win.webContents.send("focus-input");
+      },
+    },
+    { type: "separator" },
+    {
+      label: "退出",
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    },
+  ]);
+
+  tray.setToolTip("hello-todolist");
+  tray.setContextMenu(contextMenu);
+
+  // 单击托盘图标显示窗口
+  tray.on("click", () => {
+    if (win.isVisible()) {
+      win.hide();
+    } else {
+      win.show();
+      win.focus();
+    }
+  });
 }
 
 /* 1 创建窗口 */
@@ -50,6 +117,17 @@ function createWindow() {
   } else {
     win.loadFile(path.join(__dirname, "dist/index.html"));
   }
+
+  // 拦截窗口关闭事件，改为隐藏到托盘
+  win.on("close", (event) => {
+    console.log("🚪 窗口关闭事件触发, isQuitting:", isQuitting);
+    if (!isQuitting) {
+      event.preventDefault();
+      win.hide();
+    }
+  });
+
+  return win;
 }
 
 /* 2 应用生命周期 */
@@ -57,7 +135,8 @@ function createWindow() {
 app.on("ready", () => logLifecycle("ready"));
 app.whenReady().then(() => {
   logLifecycle("whenReady");
-  createWindow();
+  const win = createWindow();
+  createTray(win);
 
   app.on("activate", () => {
     logLifecycle("activate");
@@ -70,8 +149,8 @@ app.whenReady().then(() => {
 
 // 运行阶段
 app.on("browser-window-created", () => logLifecycle("browser-window-created"));
-app.on("browser-window-focus", () => logLifecycle("browser-window-focus"));
-app.on("browser-window-blur", () => logLifecycle("browser-window-blur"));
+// app.on("browser-window-focus", () => logLifecycle("browser-window-focus"));
+// app.on("browser-window-blur", () => logLifecycle("browser-window-blur"));
 
 // 关闭阶段
 app.on("window-all-closed", () => {
@@ -81,11 +160,31 @@ app.on("window-all-closed", () => {
     app.quit();
   }
 });
-app.on("before-quit", () => logLifecycle("before-quit"));
+app.on("before-quit", () => {
+  logLifecycle("before-quit");
+  isQuitting = true;
+});
 app.on("will-quit", () => logLifecycle("will-quit"));
 app.on("quit", () => logLifecycle("quit"));
 
 /* 3 注册 IPC 处理器  */
+// 通知
+ipcMain.handle("notify", (_, { title, body }) => {
+  new Notification({
+    title,
+    body,
+  }).show();
+});
+
+ipcMain.handle("dialog:info", async (_, message) => {
+  await dialog.showMessageBox({
+    type: "info",
+    title: "提示",
+    message,
+    buttons: ["确定"],
+  });
+});
+
 // 存储路径（用户目录）
 const filePath = path.join(app.getPath("userData"), "todo.json");
 

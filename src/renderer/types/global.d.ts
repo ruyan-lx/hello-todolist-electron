@@ -2,6 +2,7 @@
 
 interface Window {
   api: {
-    invoke: (channel: string, data?: any) => Promise<any>
-  }
+    invoke: (channel: string, data?: any) => Promise<any>;
+    onFocusInput: (callback: () => void) => void;
+  };
 }
