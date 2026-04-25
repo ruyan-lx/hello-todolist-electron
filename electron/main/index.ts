@@ -96,13 +96,15 @@ function createWindow() {
     },
   });
   // win.setMenuBarVisibility(false); // 隐藏菜单栏
-  // 设置 CSP 响应头(生产环境更严格)
+  // 生产环境设置 CSP（内容安全策略）响应头，限制资源加载来源，防止 XSS 攻击
+  // 开发环境不设置，避免影响热更新等开发工具的正常运行
   if (!isDev) {
     win.webContents.session.webRequest.onHeadersReceived(
       (details, callback) => {
         callback({
           responseHeaders: {
             ...details.responseHeaders,
+            // 仅允许加载同源资源；样式允许内联（'unsafe-inline'）以支持框架动态注入的样式
             "Content-Security-Policy": [
               "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'",
             ],
@@ -116,7 +118,7 @@ function createWindow() {
     win.loadURL("http://localhost:5173");
     win.webContents.openDevTools();
   } else {
-    win.loadFile(path.join(__dirname, "dist/index.html"));
+    win.loadFile(path.join(__dirname, "../../dist/index.html"));
   }
 
   // 拦截窗口关闭事件，改为隐藏到托盘

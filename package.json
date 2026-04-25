@@ -3,14 +3,45 @@
   "version": "1.0.0",
   "main": "dist-electron/main/index.js",
   "scripts": {
-    "dev": "chcp 65001 && vite"
+    "dev": "chcp 65001 && vite",
+    "build": "vite build && electron-builder",
+    "build:dir": "vite build && electron-builder --dir"
   },
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "一个简单的待办事项应用",
+  "build": {
+    "appId": "com.madongmei.hello-todolist",
+    "productName": "Hello TodoList",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
   "devDependencies": {
     "concurrently": "^9.2.1",
     "electron": "^41.3.0",
+    "electron-builder": "^26.8.1",
     "vite": "^8.0.10",
     "vite-plugin-electron": "^0.29.1",
     "wait-on": "^9.0.5"
