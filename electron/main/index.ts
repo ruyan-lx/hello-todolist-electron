@@ -1,22 +1,21 @@
 // 文件：/electron/main/index.ts
 
-import {
-  app,
-  BrowserWindow,
-  Notification,
-  dialog,
-  Tray,
-  Menu,
-  nativeImage,
-} from "electron";
+import { app, BrowserWindow, Notification, dialog, Tray, Menu, nativeImage } from "electron";
 import { ipcMain } from "electron";
 import path from "path";
 import fs from "fs";
 
-const isDev = process.env.NODE_ENV === "development";
+const devServerUrl = process.env.VITE_DEV_SERVER_URL;
+const isDev = Boolean(devServerUrl);
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
 let tray: Tray | null = null;
+let mainWindow: BrowserWindow | null = null;
 let isQuitting = false;
+
+if (!hasSingleInstanceLock) {
+  app.quit();
+}
 
 /* 生命周期日志辅助函数 */
 function logLifecycle(eventName: string) {
@@ -26,8 +25,18 @@ function logLifecycle(eventName: string) {
   console.log(`生命周期：${eventName} | ${time} | 窗口数量：${windowCount}`);
 }
 
+function showMainWindow() {
+  if (!mainWindow) return;
+
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+  mainWindow.show();
+  mainWindow.focus();
+}
+
 /* 创建系统托盘 */
-function createTray(win: BrowserWindow) {
+function createTray() {
   // 使用 nativeImage 创建图标（Windows 推荐使用 ICO 或通过 nativeImage 创建）
   let icon: Electron.NativeImage;
 
@@ -45,17 +54,15 @@ function createTray(win: BrowserWindow) {
     {
       label: "显示窗口",
       click: () => {
-        win.show();
-        win.focus();
+        showMainWindow()
       },
     },
     {
       label: "新建待办",
       click: () => {
-        win.show();
-        win.focus();
+        showMainWindow();
         // 通知渲染进程聚焦输入框
-        win.webContents.send("focus-input");
+        mainWindow?.webContents.send("focus-input");
       },
     },
     { type: "separator" },
@@ -73,11 +80,10 @@ function createTray(win: BrowserWindow) {
 
   // 单击托盘图标显示窗口
   tray.on("click", () => {
-    if (win.isVisible()) {
-      win.hide();
+    if (mainWindow?.isVisible()) {
+      mainWindow.hide();
     } else {
-      win.show();
-      win.focus();
+      showMainWindow();
     }
   });
 }
@@ -95,27 +101,26 @@ function createWindow() {
       nodeIntegration: false, // 禁止渲染进程直接使用 Node.js API
     },
   });
+  mainWindow = win;
   // win.setMenuBarVisibility(false); // 隐藏菜单栏
   // 生产环境设置 CSP（内容安全策略）响应头，限制资源加载来源，防止 XSS 攻击
   // 开发环境不设置，避免影响热更新等开发工具的正常运行
   if (!isDev) {
-    win.webContents.session.webRequest.onHeadersReceived(
-      (details, callback) => {
-        callback({
-          responseHeaders: {
-            ...details.responseHeaders,
-            // 仅允许加载同源资源；样式允许内联（'unsafe-inline'）以支持框架动态注入的样式
-            "Content-Security-Policy": [
-              "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'",
-            ],
-          },
-        });
-      },
-    );
+    win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          // 仅允许加载同源资源；样式允许内联（'unsafe-inline'）以支持框架动态注入的样式
+          "Content-Security-Policy": [
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'",
+          ],
+        },
+      });
+    });
   }
 
-  if (isDev) {
-    win.loadURL("http://localhost:5173");
+  if (devServerUrl) {
+    win.loadURL(devServerUrl);
     win.webContents.openDevTools(); // 打开开发者工具
   } else {
     win.loadFile(path.join(__dirname, "../../dist/index.html"));
@@ -130,16 +135,27 @@ function createWindow() {
     }
   });
 
+  win.on("closed", () => {
+    if (mainWindow === win) {
+      mainWindow = null;
+    }
+  });
+
   return win;
 }
 
 /* 2 应用生命周期 */
 // 启动阶段
+if (hasSingleInstanceLock) {
+  app.on("second-instance", showMainWindow);
+}
 app.on("ready", () => logLifecycle("ready"));
 app.whenReady().then(() => {
+  if (!hasSingleInstanceLock) return;
+
   logLifecycle("whenReady");
-  const win = createWindow();
-  createTray(win);
+  createWindow();
+  createTray();
 
   app.on("activate", () => {
     logLifecycle("activate");
@@ -147,6 +163,7 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
     }
+    showMainWindow();
   });
 });
 
