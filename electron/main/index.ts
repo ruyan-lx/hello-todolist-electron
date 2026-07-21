@@ -5,19 +5,22 @@ import { ipcMain } from "electron";
 import path from "path";
 import fs from "fs";
 
+// 开发环境由 Vite 注入；存在则走热更新地址
 const devServerUrl = process.env.VITE_DEV_SERVER_URL;
 const isDev = Boolean(devServerUrl);
+
+// 保证应用只运行一个实例；拿不到锁则直接退出
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
-
-let tray: Tray | null = null;
-let mainWindow: BrowserWindow | null = null;
-let isQuitting = false;
-
 if (!hasSingleInstanceLock) {
   app.quit();
 }
 
-/* 生命周期日志辅助函数 */
+let tray: Tray | null = null;
+let mainWindow: BrowserWindow | null = null;
+// 区分“真正退出”和“关闭窗口隐藏到托盘”
+let isQuitting = false;
+
+/* 生命周期日志辅助函数：打印事件名、时间与当前窗口数 */
 function logLifecycle(eventName: string) {
   const now = new Date();
   const time = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}:${now.getSeconds().toString().padStart(2, "0")}.${now.getMilliseconds().toString().padStart(3, "0")}`;
@@ -25,9 +28,12 @@ function logLifecycle(eventName: string) {
   console.log(`生命周期：${eventName} | ${time} | 窗口数量：${windowCount}`);
 }
 
+/* 显示并聚焦主窗口（处理最小化场景） */
 function showMainWindow() {
+  // 窗口尚未创建时直接返回
   if (!mainWindow) return;
 
+  // 若处于最小化状态，先恢复再显示
   if (mainWindow.isMinimized()) {
     mainWindow.restore();
   }
@@ -40,7 +46,7 @@ function createTray() {
   // 使用 nativeImage 创建图标（Windows 推荐使用 ICO 或通过 nativeImage 创建）
   let icon: Electron.NativeImage;
 
-  // 方案1: 尝试从文件加载
+  // 开发/生产环境下资源路径不同
   const iconPath = isDev
     ? path.join(__dirname, "../../electron/assets/tray-icon.png")
     : path.join(process.resourcesPath, "electron/assets/tray-icon.png");
@@ -50,11 +56,12 @@ function createTray() {
   icon = icon.resize({ width: 16, height: 16 });
   tray = new Tray(icon);
 
+  // 右键菜单：显示窗口 / 新建待办 / 退出
   const contextMenu = Menu.buildFromTemplate([
     {
       label: "显示窗口",
       click: () => {
-        showMainWindow()
+        showMainWindow();
       },
     },
     {
@@ -69,6 +76,7 @@ function createTray() {
     {
       label: "退出",
       click: () => {
+        // 标记为真正退出，避免 close 事件再次拦截
         isQuitting = true;
         app.quit();
       },
@@ -78,39 +86,39 @@ function createTray() {
   tray.setToolTip("hello-todolist");
   tray.setContextMenu(contextMenu);
 
-  // 单击托盘图标显示窗口
+  // 单击托盘图标：可见则隐藏，否则显示
   tray.on("click", () => {
     if (mainWindow?.isVisible()) {
       mainWindow.hide();
     } else {
-      showMainWindow();
+      showMainWindow();  //  或者 mainWindow.show();
     }
   });
 }
 
-/* 1 创建窗口 */
+/* 创建主窗口 */
 function createWindow() {
   const win = new BrowserWindow({
     width: 1600,
     height: 1000,
     autoHideMenuBar: true, // 自动隐藏菜单栏
     webPreferences: {
-      // 通过预加载脚本安全地暴露 API，预加载脚本通过 webPreferences.preload 配置，被注入到渲染进程中。它的代码会在渲染进程启动时、网页脚本加载前被执行。
+      // 通过预加载脚本安全地暴露 API；在网页脚本加载前执行
       preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true, // 隔离渲染进程和预加载脚本的上下文
       nodeIntegration: false, // 禁止渲染进程直接使用 Node.js API
     },
   });
   mainWindow = win;
-  // win.setMenuBarVisibility(false); // 隐藏菜单栏
-  // 生产环境设置 CSP（内容安全策略）响应头，限制资源加载来源，防止 XSS 攻击
-  // 开发环境不设置，避免影响热更新等开发工具的正常运行
+
+  // 生产环境设置 CSP，限制资源加载来源，防止 XSS
+  // 开发环境不设置，避免影响热更新等开发工具
   if (!isDev) {
     win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
       callback({
         responseHeaders: {
           ...details.responseHeaders,
-          // 仅允许加载同源资源；样式允许内联（'unsafe-inline'）以支持框架动态注入的样式
+          // 仅允许同源资源；样式允许内联以支持框架动态注入
           "Content-Security-Policy": [
             "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'",
           ],
@@ -119,6 +127,7 @@ function createWindow() {
     });
   }
 
+  // 开发环境加载 Vite 服务；生产环境加载打包后的静态文件
   if (devServerUrl) {
     win.loadURL(devServerUrl);
     win.webContents.openDevTools(); // 打开开发者工具
@@ -126,7 +135,7 @@ function createWindow() {
     win.loadFile(path.join(__dirname, "../../dist/index.html"));
   }
 
-  // 拦截窗口关闭事件，改为隐藏到托盘
+  // 拦截关闭：非退出时隐藏到托盘，而不是销毁窗口
   win.on("close", (event) => {
     console.log("🚪 窗口关闭事件触发, isQuitting:", isQuitting);
     if (!isQuitting) {
@@ -135,6 +144,7 @@ function createWindow() {
     }
   });
 
+  // 窗口真正销毁后清理引用
   win.on("closed", () => {
     if (mainWindow === win) {
       mainWindow = null;
@@ -144,19 +154,22 @@ function createWindow() {
   return win;
 }
 
-/* 2 应用生命周期 */
+
+
+/* 应用生命周期 ************************/
 // 启动阶段
-if (hasSingleInstanceLock) {
-  app.on("second-instance", showMainWindow);
-}
 app.on("ready", () => logLifecycle("ready"));
 app.whenReady().then(() => {
+  // 非首个实例不继续初始化
   if (!hasSingleInstanceLock) return;
 
   logLifecycle("whenReady");
+  // 1. 创建主窗口
   createWindow();
+  // 2. 创建系统托盘
   createTray();
 
+  // macOS：点击 Dock 图标时重新创建/显示窗口
   app.on("activate", () => {
     logLifecycle("activate");
 
@@ -168,14 +181,14 @@ app.whenReady().then(() => {
 });
 
 // 运行阶段
-app.on("browser-window-created", () => logLifecycle("browser-window-created"));
-// app.on("browser-window-focus", () => logLifecycle("browser-window-focus"));
-// app.on("browser-window-blur", () => logLifecycle("browser-window-blur"));
+app.on("browser-window-created", () => logLifecycle("browser-window-created")); // 窗口创建完毕
+// app.on("browser-window-focus", () => logLifecycle("browser-window-focus"));  // 窗口获得焦点
+// app.on("browser-window-blur", () => logLifecycle("browser-window-blur"));    // 窗口失去焦点
 
-// 关闭阶段
+// 关闭阶段: 所有窗口关闭时触发
 app.on("window-all-closed", () => {
   logLifecycle("window-all-closed");
-  // macOS 特殊行为
+  // macOS 通常保持应用常驻；其他平台关闭全部窗口后退出
   if (process.platform !== "darwin") {
     app.quit();
   }
@@ -187,8 +200,16 @@ app.on("before-quit", () => {
 app.on("will-quit", () => logLifecycle("will-quit"));
 app.on("quit", () => logLifecycle("quit"));
 
-/* 3 注册 IPC 处理器  */
-// 通知
+// 第二个实例启动时，聚焦已有主窗口
+if (hasSingleInstanceLock) {
+  app.on("second-instance", showMainWindow);
+}
+
+
+
+
+/* 注册 IPC 处理器 *************************/
+// 系统通知
 ipcMain.handle("notify", (_, { title, body }) => {
   new Notification({
     title,
@@ -196,6 +217,7 @@ ipcMain.handle("notify", (_, { title, body }) => {
   }).show();
 });
 
+// 信息对话框
 ipcMain.handle("dialog:info", async (_, message) => {
   await dialog.showMessageBox({
     type: "info",
@@ -205,14 +227,14 @@ ipcMain.handle("dialog:info", async (_, message) => {
   });
 });
 
-// 存储路径（用户目录）
+// 待办数据持久化路径（用户数据目录）
 const filePath = path.join(app.getPath("userData"), "todo.json");
 
 // 打印实际路径，方便调试
 console.log("📁 Todo 文件路径:", filePath);
 console.log("📂 userData 目录:", app.getPath("userData"));
 
-// 使用 ipcMain.handle() 注册两个通道：todo:get 和 todo:set 负责文件系统操作（读写 todo.json）
+// todo:get / todo:set：读写 todo.json
 // 读取
 ipcMain.handle("todo:get", () => {
   try {
