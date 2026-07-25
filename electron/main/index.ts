@@ -2,9 +2,13 @@
 
 import { app, BrowserWindow, Notification, dialog, Tray, Menu, nativeImage } from "electron";
 import { ipcMain } from "electron";
+import Store from 'electron-store';
 import path from "path";
 import fs from "fs";
+import { fileURLToPath } from "url";
 import { WindowManager } from "./WindowManager";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // 开发环境由 Vite 注入；存在则走热更新地址
 const devServerUrl = process.env.VITE_DEV_SERVER_URL;
@@ -109,6 +113,7 @@ function createWindow() {
       preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true, // 隔离渲染进程和预加载脚本的上下文
       nodeIntegration: false, // 禁止渲染进程直接使用 Node.js API
+      sandbox: false,
     },
   });
   mainWindow = win;
@@ -284,4 +289,27 @@ ipcMain.handle("window-pool:stats", () => {
 
 ipcMain.handle("window-pool:destroy-all", () => {
   return windowManager?.destroyAll();
+});
+
+
+/* 操作 electron-store */
+const store = new Store<Record<string, unknown>>();
+
+ipcMain.handle("store:get", (_, key: string) => {
+  return store.get(key);
+});
+
+ipcMain.handle("store:set", (_, { key, value }: { key: string; value: unknown }) => {
+  store.set(key, value);
+  return true;
+});
+
+ipcMain.handle("store:delete", (_, key: string) => {
+  store.delete(key);
+  return true;
+});
+
+ipcMain.handle("store:clear", () => {
+  store.clear();
+  return true;
 });

@@ -30,6 +30,7 @@
     </div>
 
     <windowdemo></windowdemo>
+    <ElectronStore></ElectronStore>
   </div>
 </template>
 
@@ -37,6 +38,7 @@
 import { onMounted, ref, watch } from "vue";
 import "@/assets/styles/app.css";
 import windowdemo from "@/renderer/components/window.vue";
+import ElectronStore from "./components/ElectronStore.vue";
 
 const input = ref("");
 const list = ref<any[]>([]);
