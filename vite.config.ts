@@ -15,6 +15,9 @@ export default defineConfig({
         vite: {
           build: {
             outDir: "dist-electron/main",
+            rollupOptions: {
+              external: ["electron-log", "electron-log/main"],
+            },
           },
         },
       },

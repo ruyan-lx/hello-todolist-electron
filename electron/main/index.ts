@@ -1,12 +1,17 @@
 // 文件：/electron/main/index.ts
 
-import { app, BrowserWindow, Notification, dialog, Tray, Menu, nativeImage } from "electron";
+import { app, BrowserWindow, Notification, dialog, Tray, Menu, nativeImage, shell } from "electron";
 import { ipcMain } from "electron";
 import Store from 'electron-store';
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { WindowManager } from "./WindowManager";
+import { initLogger, getLogger } from './logger.js'; // 引入日志模块
+
+// ====== 第一步：初始化日志（必须在最前面） ======
+const log = initLogger();
+const logger = getLogger('App');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -104,6 +109,7 @@ function createTray() {
 
 /* 创建主窗口 */
 function createWindow() {
+  logger.info('创建主窗口...');
   const win = new BrowserWindow({
     width: 1600,
     height: 1000,
@@ -158,6 +164,30 @@ function createWindow() {
     }
   });
 
+  // 页面加载失败
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDesc) => {
+    logger.error(`页面加载失败: code=${errorCode}, desc=${errorDesc}`);
+  });
+
+  // 渲染进程崩溃
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    logger.error('渲染进程崩溃:', details);
+  });
+
+  // 未捕获的控制台错误（从渲染进程转发过来）
+  mainWindow.webContents.on('console-message', (_event, level, message) => {
+    if (level >= 2) {
+      logger.warn(`[Renderer Console] ${message}`);
+    }
+  });
+
+  mainWindow.on('closed', () => {
+    logger.info('主窗口已关闭');
+    mainWindow = null;
+  });
+
+  logger.info('主窗口创建完成');
+
   return win;
 }
 
@@ -167,6 +197,14 @@ function createWindow() {
 // 启动阶段
 app.on("ready", () => logLifecycle("ready"));
 app.whenReady().then(() => {
+  logger.info('====================================');
+  logger.info(`应用启动 v${app.getVersion()}`);
+  logger.info(`系统: ${process.platform} ${process.arch}`);
+  logger.info(`Electron: ${process.versions.electron}`);
+  logger.info(`Chrome: ${process.versions.chrome}`);
+  logger.info(`Node: ${process.versions.node}`);
+  logger.info('====================================');
+
   // 非首个实例不继续初始化
   if (!hasSingleInstanceLock) return;
 
@@ -197,6 +235,7 @@ app.on("browser-window-created", () => logLifecycle("browser-window-created")); 
 // 关闭阶段: 所有窗口关闭时触发
 app.on("window-all-closed", () => {
   logLifecycle("window-all-closed");
+  logger.info('所有窗口已关闭');
   // macOS 通常保持应用常驻；其他平台关闭全部窗口后退出
   if (process.platform !== "darwin") {
     app.quit();
@@ -204,6 +243,7 @@ app.on("window-all-closed", () => {
 });
 app.on("before-quit", () => {
   logLifecycle("before-quit");
+  logger.info('应用即将退出');
   isQuitting = true;
 });
 app.on("will-quit", () => logLifecycle("will-quit"));
@@ -312,4 +352,45 @@ ipcMain.handle("store:delete", (_, key: string) => {
 ipcMain.handle("store:clear", () => {
   store.clear();
   return true;
+});
+
+
+/* 日志 */
+// 渲染进程主动发来的日志
+ipcMain.on('log:from-renderer', (_event, { level, message, data }) => {
+  const rendererLog: any = log.scope('Renderer');
+  rendererLog[level](message, data ?? '');
+});
+
+// 渲染进程请求打开日志文件所在目录
+ipcMain.handle('log:open-folder', async () => {
+  const logPath = log.transports.file.getFile().path;
+  logger.info('用户请求打开日志目录:', logPath);
+  await shell.showItemInFolder(logPath);
+});
+
+// 模拟业务操作：用户执行某个任务
+ipcMain.handle('task:execute', async (_event, taskName) => {
+  const taskLogger = getLogger('Task');
+
+  taskLogger.info(`开始执行任务: ${taskName}`);
+  const startTime = Date.now();
+
+  try {
+    // 模拟异步操作
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // 模拟随机失败
+    if (Math.random() < 0.3) {
+      throw new Error(`任务 "${taskName}" 执行超时`);
+    }
+
+    const elapsed = Date.now() - startTime;
+    taskLogger.info(`任务完成: ${taskName}, 耗时 ${elapsed}ms`);
+
+    return { success: true, elapsed };
+  } catch (err: any) {
+    taskLogger.error(`任务失败: ${taskName}`, err.message);
+    return { success: false, error: err.message };
+  }
 });
