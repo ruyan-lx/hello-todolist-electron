@@ -30,4 +30,8 @@ contextBridge.exposeInMainWorld("api", {
   executeTask: (taskName: any) => {
     return ipcRenderer.invoke('task:execute', taskName);
   },
+
+  submitFeedback: (description: any) => {
+    return ipcRenderer.invoke('feedback:submit', description);
+  },
 });

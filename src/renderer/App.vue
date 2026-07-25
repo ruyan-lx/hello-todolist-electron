@@ -31,6 +31,7 @@
 
     <windowdemo></windowdemo>
     <ElectronStore></ElectronStore>
+    <FeedbackDemo></FeedbackDemo>
   </div>
 </template>
 
@@ -39,6 +40,7 @@ import { onMounted, ref, watch } from "vue";
 import "@/assets/styles/app.css";
 import windowdemo from "@/renderer/components/window.vue";
 import ElectronStore from "./components/ElectronStore.vue";
+import FeedbackDemo from "./components/FeedbackDemo.vue";
 
 const input = ref("");
 const list = ref<any[]>([]);

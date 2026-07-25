@@ -394,3 +394,50 @@ ipcMain.handle('task:execute', async (_event, taskName) => {
     return { success: false, error: err.message };
   }
 });
+
+// 读取最近 N 行日志
+function readRecentLogs(maxLines = 500) {
+  const logFile = log.transports.file.getFile().path;
+
+  try {
+    const content = fs.readFileSync(logFile, 'utf-8');
+    const lines = content.split('\n');
+    return lines.slice(-maxLines).join('\n');
+  } catch (err: any) {
+    return `读取日志失败: ${err.message}`;
+  }
+}
+
+// 上传日志到服务器
+async function uploadFeedback(userDescription: any, logContent: any) {
+  const response = await fetch('https://your-server.com/api/feedback', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      description: userDescription,
+      logs: logContent,
+      version: app.getVersion(),
+      platform: process.platform,
+      timestamp: new Date().toISOString(),
+    }),
+  });
+  console.log("用户描述:", userDescription, "日志详情:", logContent, "网络响应:", response)
+  return response.ok;
+}
+
+// IPC 处理
+ipcMain.handle('feedback:submit', async (_event, description) => {
+  const feedbackLog = log.scope('Feedback');
+  feedbackLog.info('用户提交反馈');
+
+  const logs = readRecentLogs(500); // 只取最近 500 行
+
+  try {
+    const ok = await uploadFeedback(description, logs);
+    feedbackLog.info(`反馈上传${ok ? '成功' : '失败'}`);
+    return { success: ok };
+  } catch (err: any) {
+    feedbackLog.error('反馈上传异常:', err.message);
+    return { success: false, error: err.message };
+  }
+});

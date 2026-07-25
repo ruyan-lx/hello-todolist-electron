@@ -4,5 +4,6 @@ interface Window {
   api: {
     invoke: (channel: string, data?: any) => Promise<any>;
     onFocusInput: (callback: () => void) => void;
+    submitFeedback: (desc: string) => Promise<any>;
   };
 }
