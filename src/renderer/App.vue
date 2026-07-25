@@ -32,6 +32,7 @@
     <windowdemo></windowdemo>
     <ElectronStore></ElectronStore>
     <FeedbackDemo></FeedbackDemo>
+    <SdkMessageDemo></SdkMessageDemo>
   </div>
 </template>
 
@@ -41,6 +42,7 @@ import "@/assets/styles/app.css";
 import windowdemo from "@/renderer/components/window.vue";
 import ElectronStore from "./components/ElectronStore.vue";
 import FeedbackDemo from "./components/FeedbackDemo.vue";
+import SdkMessageDemo from "./components/SdkMessageDemo.vue";
 
 const input = ref("");
 const list = ref<any[]>([]);
