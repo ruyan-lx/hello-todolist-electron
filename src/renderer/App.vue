@@ -28,12 +28,15 @@
       <div class="todo-empty-icon">📝</div>
       <div class="todo-empty-text">暂无待办事项</div>
     </div>
+
+    <windowdemo></windowdemo>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref, watch } from "vue";
 import "@/assets/styles/app.css";
+import windowdemo from "@/renderer/components/window.vue";
 
 const input = ref("");
 const list = ref<any[]>([]);
@@ -81,6 +84,6 @@ watch(
 
     // window.api.invoke("dialog:info", "添加成功");
   },
-  { deep: true, immediate: false },
+  { deep: true, immediate: false }
 );
 </script>
