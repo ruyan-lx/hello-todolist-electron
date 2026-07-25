@@ -4,6 +4,7 @@ import { app, BrowserWindow, Notification, dialog, Tray, Menu, nativeImage } fro
 import { ipcMain } from "electron";
 import path from "path";
 import fs from "fs";
+import { WindowManager } from "./WindowManager";
 
 // 开发环境由 Vite 注入；存在则走热更新地址
 const devServerUrl = process.env.VITE_DEV_SERVER_URL;
@@ -17,6 +18,7 @@ if (!hasSingleInstanceLock) {
 
 let tray: Tray | null = null;
 let mainWindow: BrowserWindow | null = null;
+let windowManager: WindowManager | null = null;
 // 区分“真正退出”和“关闭窗口隐藏到托盘”
 let isQuitting = false;
 
@@ -168,6 +170,8 @@ app.whenReady().then(() => {
   createWindow();
   // 2. 创建系统托盘
   createTray();
+  // 3. 子窗口按需创建，最多保留 3 个
+  windowManager = new WindowManager(3);
 
   // macOS：点击 Dock 图标时重新创建/显示窗口
   app.on("activate", () => {
@@ -257,4 +261,27 @@ ipcMain.handle("todo:set", (_, data) => {
     console.error("写入失败:", error);
     return false;
   }
+});
+
+
+// WindowPool 演示：连续打开超过 3 次即可观察 LRU 复用
+ipcMain.handle("window-pool:open-demo", () => {
+  if (!windowManager) {
+    throw new Error("窗口管理器尚未初始化");
+  }
+  return windowManager.openDemoWindow();
+});
+
+ipcMain.handle("window-pool:stats", () => {
+  return windowManager?.getStats() ?? {
+    maxSize: 0,
+    total: 0,
+    idle: 0,
+    loading: 0,
+    active: 0,
+  };
+});
+
+ipcMain.handle("window-pool:destroy-all", () => {
+  return windowManager?.destroyAll();
 });
