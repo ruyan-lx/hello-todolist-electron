@@ -1,11 +1,13 @@
 // 文件：/src/main/index.ts
 
 import { app, BrowserWindow } from "electron";
+import type { Rectangle } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
 import { WindowManager } from "../lib/windowPool/WindowManager";
 import { createTray, getIsQuitting, markQuitting, showMainWindow } from "./tray";
 import { initLogger, getLogger } from "../lib/logger/loggerService";
+import { RenderCrashRecovery } from "../lib/crashRecovery/RenderCrashRecovery";
 import { setupAllIpcHandlers } from "../lib";
 
 // ====== 第一步：初始化日志（必须在最前面） ======
@@ -27,12 +29,24 @@ if (!hasSingleInstanceLock) {
 let mainWindow: BrowserWindow | null = null;
 let windowManager: WindowManager | null = null;
 
+// 渲染进程崩溃自动恢复：60s 内 >= 3 次崩溃则暂停自动恢复并弹窗询问用户
+const crashRecovery = new RenderCrashRecovery(
+  {
+    info: (msg) => logger.info(msg),
+    warn: (msg) => logger.warn(msg),
+    error: (msg) => logger.error(msg),
+  },
+  { loopWindowMs: 60_000, maxCrashes: 3 },
+);
+
 /* 创建主窗口 */
-function createWindow(): BrowserWindow {
+function createWindow(bounds?: Rectangle): BrowserWindow {
   logger.info("创建主窗口...");
   const win = new BrowserWindow({
-    width: 1600,
-    height: 1000,
+    width: bounds?.width ?? 1600,
+    height: bounds?.height ?? 1000,
+    x: bounds?.x,
+    y: bounds?.y,
     autoHideMenuBar: true, // 自动隐藏菜单栏
     webPreferences: {
       // 通过预加载脚本安全地暴露 API；在网页脚本加载前执行
@@ -88,9 +102,15 @@ function createWindow(): BrowserWindow {
     logger.error(`页面加载失败: code=${errorCode}, desc=${errorDesc}`);
   });
 
-  // 渲染进程崩溃
-  win.webContents.on("render-process-gone", (_event, details) => {
-    logger.error("渲染进程崩溃:", details);
+  // 渲染进程崩溃：交给统一的崩溃恢复模块处理
+  // 策略：oom/crash/abnormal-exit/launch-failed/integrity-failure → 销毁重建；
+  //       killed → 尝试 reload；clean-exit → 正常退出，不做恢复；
+  //       60s 内 >= 3 次崩溃 → 暂停自动恢复并弹窗让用户选择「重启」或「退出」
+  crashRecovery.attach(win, {
+    recreate: (crashBounds) => {
+      // 崩溃前的窗口位置与尺寸由模块捕获并通过 bounds 传入
+      return createWindow(crashBounds);
+    },
   });
 
   // 未捕获的控制台错误（从渲染进程转发过来）
@@ -163,6 +183,7 @@ app.on("window-all-closed", () => {
     app.quit();
   }
 });
+// before-quit / will-quit：应用退出前的最后时机，适合执行保存数据、释放资源等清理工作。
 app.on("before-quit", () => {
   logLifecycle("before-quit");
   logger.info("应用即将退出");
@@ -170,6 +191,24 @@ app.on("before-quit", () => {
 });
 app.on("will-quit", () => logLifecycle("will-quit"));
 app.on("quit", () => logLifecycle("quit"));
+
+// 1. 捕获未处理的 Promise 拒绝
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// 2. 捕获未捕获的同步异常
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err.message);
+  console.error(err.stack);
+
+  // 执行必要的清理操作（如关闭数据库连接）
+  // cleanup(); 
+
+  // 主动退出进程，避免状态污染导致不可预知的行为
+  process.exit(1);
+});
+
 
 // 第二个实例启动时，聚焦已有主窗口
 if (hasSingleInstanceLock) {
