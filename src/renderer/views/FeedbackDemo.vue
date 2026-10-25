@@ -18,6 +18,7 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
+import { feedbackApi } from "@/renderer/api";
 
 const desc = ref("");
 const message = ref("");
@@ -31,7 +32,11 @@ const submit = async () => {
   message.value = "";
 
   try {
-    await window.api.submitFeedback(value);
+    const result = await feedbackApi.submit(value);
+    if (result && !result.success) {
+      message.value = result.error ?? "提交失败";
+      return;
+    }
     desc.value = "";
     message.value = "反馈已提交";
   } catch (error) {

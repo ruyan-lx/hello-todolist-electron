@@ -15,44 +15,27 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { storeApi } from "@/renderer/api";
 
 const token = ref("");
 const savedToken = ref("");
 const message = ref("");
 
-const getApi = () => {
-  if (window.api) return window.api;
-  message.value = "请在 Electron 窗口中使用";
-  return null;
-};
-
 const loadToken = async () => {
-  const api = getApi();
-  if (!api) return;
-
-  const value = await api.invoke("store:get", "token");
+  const value = await storeApi.get<string>("token");
   savedToken.value = typeof value === "string" ? value : "";
   token.value = savedToken.value;
   message.value = savedToken.value ? "读取成功" : "当前没有 token";
 };
 
 const saveToken = async () => {
-  const api = getApi();
-  if (!api) return;
-
-  await api.invoke("store:set", {
-    key: "token",
-    value: token.value,
-  });
+  await storeApi.set("token", token.value);
   savedToken.value = token.value;
   message.value = "保存成功";
 };
 
 const deleteToken = async () => {
-  const api = getApi();
-  if (!api) return;
-
-  await api.invoke("store:delete", "token");
+  await storeApi.delete("token");
   token.value = "";
   savedToken.value = "";
   message.value = "已删除";

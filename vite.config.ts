@@ -11,7 +11,7 @@ export default defineConfig({
     electron([
       {
         // 主进程入口
-        entry: "electron/main/index.ts",
+        entry: "src/main/index.ts",
         vite: {
           build: {
             outDir: "dist-electron/main",
@@ -23,7 +23,7 @@ export default defineConfig({
       },
       {
         // preload 脚本入口
-        entry: "electron/preload/index.ts",
+        entry: "src/preload/index.ts",
         onstart(options) {
           // preload 改变时只需要刷新页面
           options.reload();

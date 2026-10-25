@@ -1,0 +1,22 @@
+{
+    "compilerOptions": {
+        "module": "ESNext",
+        "moduleResolution": "Bundler",
+        "target": "ES2024",
+        "composite": true,
+        "strictNullChecks": true,
+        "strictFunctionTypes": true,
+        "strict": true,
+        "skipLibCheck": true,
+        "sourceMap": true
+    },
+    "include": [
+        "src/main/**/*.ts",
+        "src/preload/**/*.ts",
+        "src/lib/**/*.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "**/node_modules/*"
+    ]
+}

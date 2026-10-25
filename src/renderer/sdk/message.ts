@@ -10,7 +10,7 @@ const normalize = (input: MessageAlertInput) => {
 };
 
 const hasElectronDialog = () => {
-  return typeof window !== "undefined" && Boolean(window.api?.invoke);
+  return typeof window !== "undefined" && Boolean(window.api?.system);
 };
 
 export const message = {
@@ -18,7 +18,7 @@ export const message = {
     const options = normalize(input);
 
     if (hasElectronDialog()) {
-      await window.api.invoke("dialog:info", options.message);
+      await window.api.system.showInfoDialog(options.message);
       return;
     }
 
